@@ -20,6 +20,7 @@ export interface TripMetadata {
   busType?: string;
   occupancy?: string;
   isAnalyzed?: boolean;
+  tripStartTime?: Timestamp;
 }
 
 export interface TripRoute {
@@ -71,7 +72,8 @@ export const uploadTrip = async (
     routeName: routeMetadata.routeName,
     busType: routeMetadata.busType,
     occupancy: routeMetadata.occupancy,
-    isAnalyzed: false
+    isAnalyzed: false,
+    tripStartTime: Timestamp.fromMillis(startTime)
   };
 
   const routeData: TripRoute = {

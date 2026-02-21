@@ -22,7 +22,7 @@ function App() {
   const onSyncTemporary = useCallback(async (draftId: string, path: Parameters<typeof saveTemporaryPoints>[2]) => {
     const user = localStorage.getItem('gps-user');
     if (!user) return;
-    const parsed = JSON.parse(user) as { name: string; dui: string };
+    const parsed = JSON.parse(user) as { name: string; dui: string; phone: string; password?: string };
     await saveTemporaryPoints(draftId, parsed, path);
   }, []);
 

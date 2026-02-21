@@ -11,6 +11,8 @@ interface RegistrationModalProps {
 export default function RegistrationModal({ isOpen, onSave, savedUsers }: RegistrationModalProps) {
     const [name, setName] = useState('');
     const [dui, setDui] = useState('');
+    const [phone, setPhone] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [mode, setMode] = useState<'select' | 'create'>(savedUsers.length > 0 ? 'select' : 'create');
 
@@ -28,8 +30,16 @@ export default function RegistrationModal({ isOpen, onSave, savedUsers }: Regist
             setError('Please enter your DUI');
             return;
         }
+        if (!phone.trim()) {
+            setError('Please enter your phone number');
+            return;
+        }
+        if (!password.trim()) {
+            setError('Please enter a password');
+            return;
+        }
 
-        onSave({ name: name.trim(), dui: dui.trim() });
+        onSave({ name: name.trim(), dui: dui.trim(), phone: phone.trim(), password: password.trim() });
     };
 
     const handleSelectUser = (user: UserInfo) => {
@@ -51,8 +61,11 @@ export default function RegistrationModal({ isOpen, onSave, savedUsers }: Regist
                                     className="btn btn-outline user-item"
                                     onClick={() => handleSelectUser(user)}
                                 >
-                                    <strong>{user.name}</strong>
-                                    <small>{user.dui}</small>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                        <strong>{user.name}</strong>
+                                        <small>DUI: {user.dui}</small>
+                                        <small>Tel: {user.phone}</small>
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -63,7 +76,10 @@ export default function RegistrationModal({ isOpen, onSave, savedUsers }: Regist
                     </div>
                 ) : (
                     <>
-                        <p>Please enter your details to continue.</p>
+                        <p>Por favor ingrese sus detalles para continuar.</p>
+                        <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+                            Para contactarlo por este medio si usted es el ganador por usar más tiempo la app.
+                        </p>
 
                         <form onSubmit={handleSubmit} className="registration-form">
                             <div className="form-group">
@@ -86,6 +102,30 @@ export default function RegistrationModal({ isOpen, onSave, savedUsers }: Regist
                                     value={dui}
                                     onChange={(e) => setDui(e.target.value)}
                                     placeholder="00000000-0"
+                                    className="form-input"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="phone">Número de Teléfono</label>
+                                <input
+                                    type="tel"
+                                    id="phone"
+                                    value={phone}
+                                    onChange={(e) => setPhone(e.target.value)}
+                                    placeholder="0000-0000"
+                                    className="form-input"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="password">Contraseña</label>
+                                <input
+                                    type="password"
+                                    id="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Contraseña"
                                     className="form-input"
                                 />
                             </div>

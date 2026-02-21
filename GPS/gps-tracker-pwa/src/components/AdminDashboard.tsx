@@ -1,44 +1,61 @@
-
 import { useEffect, useState } from 'react';
 import { getTrips, getTripRoute, type TripMetadata } from '../services/tripService';
-import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import type { Position } from '../hooks/usePathTracker';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix for default marker icon in Leaflet with Webpack/Vite (copied from MapTracker)
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    iconSize: [25, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
 
 interface AdminDashboardProps {
     onClose: () => void;
 }
 
+interface UserGroup {
+    dui: string;
+    name: string;
+    phone: string;
+    password?: string;
+    totalPoints: number;
+    trips: TripMetadata[];
+}
+
 export default function AdminDashboard({ onClose }: AdminDashboardProps) {
-    const [trips, setTrips] = useState<TripMetadata[]>([]);
-    const [selectedTrip, setSelectedTrip] = useState<TripMetadata | null>(null);
-    const [selectedTripPath, setSelectedTripPath] = useState<Position[]>([]);
     const [loadingList, setLoadingList] = useState(true);
-    const [loadingMap, setLoadingMap] = useState(false);
+    const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+    const [tripPaths, setTripPaths] = useState<Record<string, Position[]>>({});
+    const [loadingPaths, setLoadingPaths] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        loadTrips();
+        loadData();
     }, []);
 
-    const loadTrips = async () => {
+    const loadData = async () => {
         setLoadingList(true);
         try {
             const data = await getTrips();
-            setTrips(data);
+            const groups: Record<string, UserGroup> = {};
+
+            for (const trip of data) {
+                const { dui, name, phone, password } = trip.user;
+                if (!groups[dui]) {
+                    groups[dui] = {
+                        dui,
+                        name,
+                        phone: phone || 'N/A',
+                        password: password || 'N/A',
+                        totalPoints: 0,
+                        trips: []
+                    };
+                }
+                groups[dui].trips.push(trip);
+                groups[dui].totalPoints += trip.pointCount;
+            }
+
+            // Sort groups by totalPoints descending
+            const sortedGroups = Object.values(groups).sort((a, b) => b.totalPoints - a.totalPoints);
+
+            // Sort trips inside each group by startTime ascending (1, 2, ..., n)
+            sortedGroups.forEach(g => {
+                g.trips.sort((a, b) => a.startTime - b.startTime);
+            });
+
+            setUserGroups(sortedGroups);
         } catch (e) {
             console.error("Failed to load trips", e);
         } finally {
@@ -46,101 +63,97 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
         }
     };
 
-    const handleSelectTrip = async (trip: TripMetadata) => {
-        if (selectedTrip?.id === trip.id) return;
-
-        setSelectedTrip(trip);
-        setSelectedTripPath([]); // Clear previous path immediately
-        setLoadingMap(true);
-
+    const loadCoordinates = async (tripId: string) => {
+        if (!tripId || tripPaths[tripId]) return;
+        setLoadingPaths(prev => ({ ...prev, [tripId]: true }));
         try {
-            if (trip.id) {
-                const path = await getTripRoute(trip.id);
-                setSelectedTripPath(path);
-            }
-        } catch (e) {
-            console.error("Failed to load trip route", e);
+            const path = await getTripRoute(tripId);
+            setTripPaths(prev => ({ ...prev, [tripId]: path }));
+        } catch (error) {
+            console.error(error);
         } finally {
-            setLoadingMap(false);
+            setLoadingPaths(prev => ({ ...prev, [tripId]: false }));
         }
     };
 
     return (
         <div className="dashboard-overlay">
-            <div className="dashboard-container glass-panel">
+            <div className="dashboard-container glass-panel" style={{ maxWidth: '900px', width: '95%' }}>
                 <div className="dashboard-header">
                     <h2>Admin Dashboard</h2>
                     <button className="btn btn-outline" onClick={onClose}>Close</button>
                 </div>
 
-                <div className="dashboard-content">
-                    <div className="trip-list">
-                        <h3>Recorded Trips</h3>
-                        {loadingList ? <p>Loading list...</p> : (
-                            <div className="list-scroll">
-                                {trips.map(trip => (
-                                    <div
-                                        key={trip.id}
-                                        className={`trip-item ${selectedTrip?.id === trip.id ? 'active' : ''}`}
-                                        onClick={() => handleSelectTrip(trip)}
-                                    >
-                                        <strong>{trip.user.name}</strong>
-                                        <small>{trip.user.dui}</small>
-                                        {trip.routeName && <span className="route-name">{trip.routeName}</span>}
-                                        <span className="timestamp">{trip.uploadedAt.toDate().toLocaleString()}</span>
-                                        <span className="timestamp" style={{ fontSize: '0.7rem' }}>
-                                            Points: {trip.pointCount} | {(trip.duration / 60).toFixed(1)} mins
-                                        </span>
-                                    </div>
-                                ))}
-                                {trips.length === 0 && <p>No trips found.</p>}
-                            </div>
-                        )}
-                    </div>
+                <div className="dashboard-content" style={{ display: 'block', overflowY: 'auto' }}>
+                    {loadingList ? <p>Cargando datos...</p> : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
+                            {userGroups.map((group, uIndex) => (
+                                <div key={group.dui} className="user-group" style={{
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    padding: '1.5rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                                }}>
+                                    <h3 style={{ marginBottom: '1rem', color: '#4ade80' }}>
+                                        USUARIO "{group.name}", CONTRASEÑA: "{group.password}", TELEFONO: "{group.phone}" <br />
+                                        <small style={{ color: '#aaa', fontSize: '0.9rem' }}>(Total Datos: {group.totalPoints})</small>
+                                    </h3>
 
-                    <div className="trip-map-view">
-                        {selectedTrip ? (
-                            <div className="map-view-container">
-                                <div className="trip-details">
-                                    <h4>Trip Details</h4>
-                                    <p><strong>User:</strong> {selectedTrip.user.name}</p>
-                                    <p><strong>Duration:</strong> {(selectedTrip.duration / 60).toFixed(2)} mins</p>
-                                    <p><strong>Points:</strong> {selectedTrip.pointCount}</p>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                        {group.trips.map((trip, tIndex) => {
+                                            const tripNum = tIndex + 1;
+                                            const startTimeStr = trip.tripStartTime
+                                                ? trip.tripStartTime.toDate().toLocaleString('es-SV')
+                                                : new Date(trip.startTime).toLocaleString('es-SV');
+                                            const endTimeStr = trip.uploadedAt.toDate().toLocaleString('es-SV');
+                                            const hasCoords = !!tripPaths[trip.id!] || trip.pointCount === 0;
+                                            const isLoadingCoords = loadingPaths[trip.id!];
+
+                                            return (
+                                                <div key={trip.id} style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px' }}>
+                                                    <div style={{ marginBottom: '0.5rem' }}>
+                                                        <strong>TIEMPO DE INICIO(viaje {tripNum}): </strong> "{startTimeStr}"
+                                                    </div>
+
+                                                    <div style={{ marginBottom: '0.5rem' }}>
+                                                        <strong>COORDENADAS(viaje {tripNum}): </strong>
+                                                        {!hasCoords && !isLoadingCoords && (
+                                                            <button
+                                                                className="btn btn-primary btn-sm"
+                                                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                                                                onClick={() => loadCoordinates(trip.id!)}
+                                                            >
+                                                                Cargar {trip.pointCount} coordenadas
+                                                            </button>
+                                                        )}
+                                                        {isLoadingCoords && <span>Cargando...</span>}
+                                                        {hasCoords && tripPaths[trip.id!] && (
+                                                            <div style={{
+                                                                maxHeight: '150px',
+                                                                overflowY: 'auto',
+                                                                background: '#111',
+                                                                padding: '0.5rem',
+                                                                marginTop: '0.5rem',
+                                                                fontSize: '0.85rem',
+                                                                fontFamily: 'monospace'
+                                                            }}>
+                                                                "[{tripPaths[trip.id!].map(p => `[${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}]`).join(', ')}]"
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div>
+                                                        <strong>TIEMPO FINAL(viaje {tripNum}): </strong> "{endTimeStr}"
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-
-                                {loadingMap ? (
-                                    <div className="placeholder">
-                                        <p>Loading full path data...</p>
-                                    </div>
-                                ) : (
-                                    selectedTripPath.length > 0 ? (
-                                        <MapContainer
-                                            center={[selectedTripPath[0].lat, selectedTripPath[0].lng]}
-                                            zoom={15}
-                                            style={{ height: '300px', width: '100%', borderRadius: '0.5rem' }}
-                                        >
-                                            <TileLayer
-                                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            />
-                                            <Polyline positions={selectedTripPath.map(p => [p.lat, p.lng])} color="blue" weight={4} />
-                                            <Marker position={[selectedTripPath[0].lat, selectedTripPath[0].lng]}>
-                                                <Popup>Start</Popup>
-                                            </Marker>
-                                            <Marker position={[selectedTripPath[selectedTripPath.length - 1].lat, selectedTripPath[selectedTripPath.length - 1].lng]}>
-                                                <Popup>End</Popup>
-                                            </Marker>
-                                        </MapContainer>
-                                    ) : (
-                                        <div className="placeholder">
-                                            <p>No path data available.</p>
-                                        </div>
-                                    )
-                                )}
-                            </div>
-                        ) : (
-                            <div className="placeholder">Select a trip to view map</div>
-                        )}
-                    </div>
+                            ))}
+                            {userGroups.length === 0 && <p>No hay datos registrados.</p>}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -13,6 +13,8 @@ export interface Position {
 export interface UserInfo {
   name: string;
   dui: string;
+  phone: string;
+  password?: string;
 }
 
 const MIN_DISTANCE_METERS = 2;
