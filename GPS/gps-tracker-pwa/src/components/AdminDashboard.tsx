@@ -87,7 +87,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                 <div className="dashboard-content" style={{ display: 'block', overflowY: 'auto' }}>
                     {loadingList ? <p>Cargando datos...</p> : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '2rem' }}>
-                            {userGroups.map((group, uIndex) => (
+                            {userGroups.map((group) => (
                                 <div key={group.dui} className="user-group" style={{
                                     background: 'rgba(255, 255, 255, 0.05)',
                                     padding: '1.5rem',
